@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { execFile } = require('child_process'); // 変更: 記号・スペース入りファイル名に強い execFile を使用
 
 const app = express();
 const PORT = 3004;
@@ -15,18 +15,21 @@ if (!fs.existsSync(CACHE_DIR)) {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/media', express.static(BASE_DIR));
 
-// 動画ファイルの拡張子判定
 const VIDEO_EXTS = ['.mp4', '.mov', '.m4v', '.webm', '.mkv'];
 const isVideo = (filename) => VIDEO_EXTS.includes(path.extname(filename).toLowerCase());
 
-// ディレクトリ一覧の取得（再帰的にサブディレクトリを抽出）
+// 追加: 隠しファイル（.で始まるファイル・フォルダ）を除外する判定
+const isNotHidden = (filename) => !filename.startsWith('.');
+
+// ディレクトリ一覧の取得
 app.get('/api/directories', (req, res) => {
 	try {
 		const getDirs = (dirPath, relativePath = '') => {
 			let results = [];
 			const list = fs.readdirSync(dirPath, { withFileTypes: true });
 			for (const item of list) {
-				if (item.isDirectory()) {
+				// 隠しディレクトリを除外
+				if (item.isDirectory() && isNotHidden(item.name)) {
 					const rel = relativePath ? `${relativePath}/${item.name}` : item.name;
 					results.push(rel);
 					results = results.concat(getDirs(path.join(dirPath, item.name), rel));
@@ -56,7 +59,8 @@ app.get('/api/videos', (req, res) => {
 		}
 		const files = fs.readdirSync(targetDir, { withFileTypes: true });
 		const videos = files
-			.filter((file) => file.isFile() && isVideo(file.name))
+			// 隠しファイルを除外 ＆ 動画のみ抽出
+			.filter((file) => file.isFile() && isNotHidden(file.name) && isVideo(file.name))
 			.map((file) => ({
 				name: file.name,
 				path: path.join(relDir, file.name),
@@ -81,16 +85,35 @@ app.get('/api/thumbnail', (req, res) => {
 		return res.sendFile(thumbPath);
 	}
 
-	// FFmpegで再生開始1秒時点のフレームをキャプチャ
-	const cmd = `ffmpeg -ss 00:00:01 -i "${videoPath}" -vframes 1 -q:v 2 -s 400x225 "${thumbPath}" -y`;
-	exec(cmd, (error) => {
-		if (error) {
-			return res.status(500).send('Thumbnail generation failed');
-		}
-		res.sendFile(thumbPath);
-	});
+	// 変更: ファイル名のエスケープ問題を回避するため execFile を使用
+	execFile(
+		'ffmpeg',
+		[
+			'-ss',
+			'00:00:01',
+			'-i',
+			videoPath,
+			'-vframes',
+			'1',
+			'-q:v',
+			'2',
+			'-s',
+			'400x225',
+			thumbPath,
+			'-y',
+		],
+		(error, stdout, stderr) => {
+			if (error) {
+				// エラー原因をターミナルに表示
+				console.error(`\n[サムネイル生成エラー] ${videoPath}`);
+				console.error(stderr);
+				return res.status(500).send('Thumbnail generation failed');
+			}
+			res.sendFile(thumbPath);
+		},
+	);
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-	console.log(`Movie Viewer running at http://192.168.100.142:${PORT}`);
+	console.log(`Movie Viewer running at http://0.0.0.0:${PORT}`);
 });
