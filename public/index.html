@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>動画ライブラリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>動画ライブラリ</h1>
+    <div class="select-wrapper">
+      <select id="dirSelect">
+        <option value="">フォルダを選択してください</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="content">
+    <div id="videoGrid" class="video-grid"></div>
+    <div id="emptyState" class="empty-state">フォルダを選択するか、動画が存在しません。</div>
+  </main>
+
+  <!-- 全画面再生用モーダル -->
+  <div id="playerModal" class="modal">
+    <button id="closeBtn" class="close-btn">&times;</button>
+    <video id="fullPlayer" controls playsinline></video>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
